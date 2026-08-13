@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@imagekit/javascript": "latest",
+    "@imagekit/nodejs": "latest",
     "firebase": "latest",
-    "imagekit": "latest",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest"
