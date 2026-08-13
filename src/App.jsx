@@ -1,10 +1,71 @@
 import { useEffect, useMemo, useState } from 'react'
-import { addDoc, collection, getDocs, serverTimestamp } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, serverTimestamp } from 'firebase/firestore'
 import { db } from './firebase'
 import {
-  ArrowRight, Instagram, Mail, Menu, MessageCircle, Palette,
-  PenLine, Play, Smartphone, Sparkles, X, CalendarDays
+  ArrowRight,
+  Instagram,
+  Mail,
+  Menu,
+  MessageCircle,
+  Palette,
+  PenLine,
+  Play,
+  Smartphone,
+  Sparkles,
+  X,
+  CalendarDays
 } from 'lucide-react'
+
+const DEFAULT_SITE = {
+  navSobre: 'Sobre',
+  navTrabalhos: 'Trabalhos',
+  navPortfolio: 'Portfólio',
+  navFeedbacks: 'Feedbacks',
+  navOrcamento: 'Orçamento',
+  navContato: 'Contato',
+
+  heroEyebrow: 'SOCIAL MEDIA • CONTEÚDO • ESTRATÉGIA',
+  heroNome: 'Brenda',
+  heroSobrenome: 'Alencar',
+  heroProfissao: 'Social Media & Criadora de Conteúdo',
+  heroDescricao: 'Transformo ideias em conteúdo com identidade, estratégia e propósito para marcas que querem ser lembradas.',
+  heroBotao: 'Conheça meu trabalho',
+  heroCardLinha1: 'Estratégia + criatividade',
+  heroCardLinha2: 'para comunicar melhor.',
+
+  sobreEyebrow: 'SOBRE MIM',
+  sobreTitulo: 'Comunicação que aproxima marcas e pessoas.',
+  sobreTexto1: 'Sou Brenda Alencar, estudante de Publicidade e Propaganda, Social Media e criadora de conteúdo. Trabalho unindo criatividade e planejamento para construir uma presença digital coerente e marcante.',
+  sobreTexto2: 'Atuo com gestão de Instagram, criação de artes e vídeos, planejamento e produção de conteúdo.',
+
+  trabalhosEyebrow: 'O QUE EU FAÇO',
+  trabalhosTitulo: 'Meus trabalhos',
+
+  portfolioEyebrow: 'PORTFÓLIO',
+  portfolioTitulo: 'Projetos que contam histórias.',
+  portfolioDescricao: 'Conheça alguns trabalhos e projetos em destaque.',
+
+  feedbacksEyebrow: 'FEEDBACKS',
+  feedbacksTitulo: 'O que dizem sobre meu trabalho',
+
+  orcamentoEyebrow: 'ORÇAMENTO',
+  orcamentoTitulo: 'Vamos transformar suas ideias em conteúdo?',
+  orcamentoDescricao: 'Selecione os serviços para receber uma estimativa inicial.',
+  orcamentoBotao: 'Enviar pelo WhatsApp',
+  orcamentoPersonalizado: 'Prefiro um orçamento personalizado',
+  orcamentoAviso: 'O valor exibido é uma estimativa e pode variar conforme a demanda.',
+
+  contatoEyebrow: 'CONTATO',
+  contatoTitulo: 'Vamos criar juntos?',
+  contatoDescricao: 'Entre em contato e me conte sobre sua ideia.',
+  instagramTexto: 'Instagram',
+  instagramUrl: '',
+  emailTexto: 'E-mail',
+  email: '',
+  whatsappTexto: 'WhatsApp',
+
+  rodapeTexto: 'Social Media & Criadora de Conteúdo'
+}
 
 const DEFAULT_SERVICES = [
   { id:'gestao', name:'Gestão de Instagram', description:'Planejamento, organização e acompanhamento estratégico do perfil.', price:0 },
@@ -12,7 +73,7 @@ const DEFAULT_SERVICES = [
   { id:'artes', name:'Artes para redes sociais', description:'Peças visuais para posts, stories e campanhas.', price:0 },
   { id:'videos', name:'Edição de vídeos', description:'Edição de reels e vídeos para presença digital.', price:0 },
   { id:'planejamento', name:'Planejamento de conteúdo', description:'Calendário, pautas e direcionamento estratégico.', price:0 },
-  { id:'pacotes', name:'Pacotes personalizados', description:'Combinação de serviços conforme a necessidade do projeto.', price:0 },
+  { id:'pacotes', name:'Pacotes personalizados', description:'Combinação de serviços conforme a necessidade do projeto.', price:0 }
 ]
 
 const work = [
@@ -21,7 +82,7 @@ const work = [
   ['Reels e vídeos', Play],
   ['Copywriting / legendas', PenLine],
   ['Planejamento de conteúdo', CalendarDays],
-  ['Criação de posts', Sparkles],
+  ['Criação de posts', Sparkles]
 ]
 
 function money(v) {
@@ -33,6 +94,7 @@ function money(v) {
 
 export default function App() {
   const [menu, setMenu] = useState(false)
+  const [site, setSite] = useState(DEFAULT_SITE)
   const [services, setServices] = useState(DEFAULT_SERVICES)
   const [selected, setSelected] = useState([])
   const [form, setForm] = useState({
@@ -43,18 +105,28 @@ export default function App() {
   const [sent, setSent] = useState(false)
 
   useEffect(() => {
-    getDocs(collection(db, 'services'))
-      .then(snapshot => {
-        if (!snapshot.empty) {
+    async function loadContent() {
+      try {
+        const configSnap = await getDoc(doc(db, 'site', 'config'))
+        if (configSnap.exists()) {
+          setSite({ ...DEFAULT_SITE, ...configSnap.data() })
+        }
+
+        const serviceSnap = await getDocs(collection(db, 'services'))
+        if (!serviceSnap.empty) {
           setServices(
-            snapshot.docs.map(document => ({
+            serviceSnap.docs.map(document => ({
               id: document.id,
               ...document.data()
             }))
           )
         }
-      })
-      .catch(() => {})
+      } catch (error) {
+        console.warn('Não foi possível carregar o conteúdo do Firebase.', error)
+      }
+    }
+
+    loadContent()
   }, [])
 
   const total = useMemo(() => {
@@ -149,190 +221,98 @@ Sei que este é um pré-orçamento e que o valor final pode variar conforme a de
   return (
     <div>
       <header className="nav">
-
         <a className="brand brand-logo" href="#home">
-          <img
-            src="/publici-karol-logo.png"
-            alt="Publici Karol"
-          />
+          <img src="/publici-karol-logo.png" alt="Publici Karol" />
         </a>
 
         <nav className={menu ? 'links open' : 'links'}>
-          {[
-            'Sobre',
-            'Trabalhos',
-            'Portfólio',
-            'Feedbacks',
-            'Orçamento',
-            'Contato'
-          ].map(item => (
-            <a
-              key={item}
-              onClick={() => setMenu(false)}
-              href={`#${item
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .toLowerCase()}`}
-            >
-              {item}
-            </a>
-          ))}
+          <a onClick={() => setMenu(false)} href="#sobre">{site.navSobre}</a>
+          <a onClick={() => setMenu(false)} href="#trabalhos">{site.navTrabalhos}</a>
+          <a onClick={() => setMenu(false)} href="#portfolio">{site.navPortfolio}</a>
+          <a onClick={() => setMenu(false)} href="#feedbacks">{site.navFeedbacks}</a>
+          <a onClick={() => setMenu(false)} href="#orcamento">{site.navOrcamento}</a>
+          <a onClick={() => setMenu(false)} href="#contato">{site.navContato}</a>
         </nav>
 
-        <button
-          className="menu"
-          onClick={() => setMenu(!menu)}
-        >
+        <button className="menu" onClick={() => setMenu(!menu)}>
           {menu ? <X /> : <Menu />}
         </button>
       </header>
 
       <main>
-
-        {/* HOME */}
         <section id="home" className="hero">
-
           <div className="hero-copy">
-
-            <span className="eyebrow">
-              SOCIAL MEDIA • CONTEÚDO • ESTRATÉGIA
-            </span>
+            <span className="eyebrow">{site.heroEyebrow}</span>
 
             <h1>
-              Brenda
+              {site.heroNome}
               <br />
-              <em>Alencar</em>
+              <em>{site.heroSobrenome}</em>
             </h1>
 
-            <h2>
-              Social Media & Criadora de Conteúdo
-            </h2>
+            <h2>{site.heroProfissao}</h2>
 
-            <p>
-              Transformo ideias em conteúdo com identidade,
-              estratégia e propósito para marcas que querem
-              ser lembradas.
-            </p>
+            <p>{site.heroDescricao}</p>
 
             <a className="btn" href="#portfolio">
-              Conheça meu trabalho
+              {site.heroBotao}
               <ArrowRight size={18} />
             </a>
-
           </div>
 
           <div className="hero-art">
-
             <div className="photo-placeholder hero-photo">
-              <img
-                src="/brenda-alencar.png"
-                alt="Brenda Alencar"
-              />
+              <img src="/brenda-alencar.png" alt="Brenda Alencar" />
             </div>
 
             <div className="floating-card">
-              Estratégia + criatividade
+              {site.heroCardLinha1}
               <br />
-              <strong>para comunicar melhor.</strong>
+              <strong>{site.heroCardLinha2}</strong>
             </div>
-
           </div>
         </section>
 
-        {/* SOBRE */}
         <section id="sobre" className="section about">
-
-          <div className="section-number">
-            01
-          </div>
+          <div className="section-number">01</div>
 
           <div className="about-photo about-photo-real">
-            <img
-              src="/brenda-alencar.png"
-              alt="Brenda Alencar"
-            />
+            <img src="/brenda-alencar.png" alt="Brenda Alencar" />
           </div>
 
           <div>
-
-            <span className="eyebrow">
-              SOBRE MIM
-            </span>
-
-            <h2>
-              Comunicação que aproxima{' '}
-              <em>marcas e pessoas.</em>
-            </h2>
-
-            <p>
-              Sou Brenda Alencar, estudante de Publicidade
-              e Propaganda, Social Media e criadora de
-              conteúdo. Trabalho unindo criatividade e
-              planejamento para construir uma presença
-              digital coerente e marcante.
-            </p>
-
-            <p>
-              Atuo com gestão de Instagram, criação de artes
-              e vídeos, planejamento e produção de conteúdo.
-            </p>
-
+            <span className="eyebrow">{site.sobreEyebrow}</span>
+            <h2>{site.sobreTitulo}</h2>
+            <p>{site.sobreTexto1}</p>
+            <p>{site.sobreTexto2}</p>
           </div>
         </section>
 
-        {/* TRABALHOS */}
         <section id="trabalhos" className="section soft">
-
           <div className="center">
-            <span className="eyebrow">
-              O QUE EU FAÇO
-            </span>
-
-            <h2>
-              Meus <em>trabalhos</em>
-            </h2>
+            <span className="eyebrow">{site.trabalhosEyebrow}</span>
+            <h2>{site.trabalhosTitulo}</h2>
           </div>
 
           <div className="work-grid">
-
             {work.map(([name, Icon]) => (
               <article className="work-card" key={name}>
-
                 <Icon />
-
                 <h3>{name}</h3>
-
-                <p>
-                  Soluções criativas pensadas para fortalecer
-                  sua comunicação digital.
-                </p>
-
+                <p>Soluções criativas pensadas para fortalecer sua comunicação digital.</p>
               </article>
             ))}
-
           </div>
         </section>
 
-        {/* PORTFÓLIO */}
         <section id="portfolio" className="section">
-
-          <span className="eyebrow">
-            PORTFÓLIO
-          </span>
-
-          <h2>
-            Projetos que contam <em>histórias.</em>
-          </h2>
+          <span className="eyebrow">{site.portfolioEyebrow}</span>
+          <h2>{site.portfolioTitulo}</h2>
+          <p>{site.portfolioDescricao}</p>
 
           <div className="portfolio-grid">
-
-            {[1, 2, 3, 4, 5, 6].map((number, index) => (
-
-              <article
-                className={`project p${index + 1}`}
-                key={number}
-              >
-
+            {[1,2,3,4,5,6].map((number, index) => (
+              <article className={`project p${index + 1}`} key={number}>
                 <div className="project-image">
                   PROJETO {String(number).padStart(2, '0')}
                 </div>
@@ -350,89 +330,45 @@ Sei que este é um pré-orçamento e que o valor final pode variar conforme a de
                   }
                 </small>
 
-                <h3>
-                  Projeto em destaque
-                </h3>
-
-                <p>
-                  Espaço preparado para imagem, contexto
-                  e descrição do trabalho.
-                </p>
-
+                <h3>Projeto em destaque</h3>
+                <p>Espaço preparado para imagem, contexto e descrição do trabalho.</p>
               </article>
             ))}
-
           </div>
         </section>
 
-        {/* FEEDBACKS */}
-        <section
-          id="feedbacks"
-          className="feedback section"
-        >
-
-          <span className="eyebrow light">
-            FEEDBACKS
-          </span>
-
-          <h2>
-            O que dizem sobre{' '}
-            <em>meu trabalho</em>
-          </h2>
+        <section id="feedbacks" className="feedback section">
+          <span className="eyebrow light">{site.feedbacksEyebrow}</span>
+          <h2>{site.feedbacksTitulo}</h2>
 
           <div className="quotes">
-
             <blockquote>
-              “Um espaço para inserir um feedback real
-              de cliente sobre o trabalho desenvolvido.”
+              “Um espaço para inserir um feedback real de cliente sobre o trabalho desenvolvido.”
               <footer>— Cliente</footer>
             </blockquote>
 
             <blockquote>
-              “Profissionalismo, criatividade e atenção
-              em cada detalhe do projeto.”
+              “Profissionalismo, criatividade e atenção em cada detalhe do projeto.”
               <footer>— Cliente</footer>
             </blockquote>
 
             <blockquote>
-              “A comunicação ganhou muito mais identidade
-              e organização.”
+              “A comunicação ganhou muito mais identidade e organização.”
               <footer>— Cliente</footer>
             </blockquote>
-
           </div>
         </section>
 
-        {/* ORÇAMENTO */}
-        <section
-          id="orcamento"
-          className="section budget"
-        >
-
+        <section id="orcamento" className="section budget">
           <div className="center">
-
-            <span className="eyebrow">
-              ORÇAMENTO
-            </span>
-
-            <h2>
-              Vamos transformar suas ideias{' '}
-              <em>em conteúdo?</em>
-            </h2>
-
-            <p>
-              Selecione os serviços para receber uma
-              estimativa inicial.
-            </p>
-
+            <span className="eyebrow">{site.orcamentoEyebrow}</span>
+            <h2>{site.orcamentoTitulo}</h2>
+            <p>{site.orcamentoDescricao}</p>
           </div>
 
           <div className="budget-grid">
-
             <div className="service-picker">
-
               {services.map(service => (
-
                 <label
                   className={
                     selected.includes(service.id)
@@ -441,7 +377,6 @@ Sei que este é um pré-orçamento e que o valor final pode variar conforme a de
                   }
                   key={service.id}
                 >
-
                   <input
                     type="checkbox"
                     checked={selected.includes(service.id)}
@@ -449,13 +384,8 @@ Sei que este é um pré-orçamento e que o valor final pode variar conforme a de
                   />
 
                   <div>
-                    <strong>
-                      {service.name}
-                    </strong>
-
-                    <small>
-                      {service.description}
-                    </small>
+                    <strong>{service.name}</strong>
+                    <small>{service.description}</small>
                   </div>
 
                   <b>
@@ -463,24 +393,17 @@ Sei que este é um pré-orçamento e que o valor final pode variar conforme a de
                       ? money(service.price)
                       : 'Sob consulta'}
                   </b>
-
                 </label>
               ))}
-
             </div>
 
             <aside className="summary">
-
-              <span className="eyebrow light">
-                SEU PRÉ-ORÇAMENTO
-              </span>
+              <span className="eyebrow light">SEU PRÉ-ORÇAMENTO</span>
 
               <h3>
                 {selected.length}{' '}
-                serviço
-                {selected.length === 1 ? '' : 's'}{' '}
-                selecionado
-                {selected.length === 1 ? '' : 's'}
+                serviço{selected.length === 1 ? '' : 's'}{' '}
+                selecionado{selected.length === 1 ? '' : 's'}
               </h3>
 
               <div className="total">
@@ -527,102 +450,68 @@ Sei que este é um pré-orçamento e que o valor final pode variar conforme a de
                 onClick={sendBudget}
               >
                 <MessageCircle size={18} />
-                Enviar pelo WhatsApp
+                {site.orcamentoBotao}
               </button>
 
               <button
                 className="text-btn"
                 onClick={customWhatsapp}
               >
-                Prefiro um orçamento personalizado
+                {site.orcamentoPersonalizado}
               </button>
 
-              <small>
-                O valor exibido é uma estimativa e pode
-                variar conforme a demanda.
-              </small>
+              <small>{site.orcamentoAviso}</small>
 
               {sent && (
                 <p className="success">
                   Solicitação preparada ✓
                 </p>
               )}
-
             </aside>
-
           </div>
         </section>
 
-        {/* CONTATO */}
-        <section
-          id="contato"
-          className="section contact"
-        >
-
+        <section id="contato" className="section contact">
           <div>
-
-            <span className="eyebrow">
-              CONTATO
-            </span>
-
-            <h2>
-              Vamos criar <em>juntos?</em>
-            </h2>
-
-            <p>
-              Entre em contato e me conte sobre sua ideia.
-            </p>
-
+            <span className="eyebrow">{site.contatoEyebrow}</span>
+            <h2>{site.contatoTitulo}</h2>
+            <p>{site.contatoDescricao}</p>
           </div>
 
           <div className="contact-links">
-
-            <a href="#" aria-label="Instagram">
+            <a
+              href={site.instagramUrl || '#'}
+              target={site.instagramUrl ? '_blank' : undefined}
+              rel="noreferrer"
+            >
               <Instagram />
-              Instagram
+              {site.instagramTexto}
             </a>
 
             <button onClick={customWhatsapp}>
               <MessageCircle />
-              WhatsApp
+              {site.whatsappTexto}
             </button>
 
-            <a href="mailto:seuemail@exemplo.com">
+            <a href={site.email ? `mailto:${site.email}` : '#'}>
               <Mail />
-              E-mail
+              {site.emailTexto}
             </a>
-
           </div>
-
         </section>
-
       </main>
 
       <footer className="footer">
-
-        <a
-          className="brand brand-logo footer-logo"
-          href="#home"
-        >
-          <img
-            src="/publici-karol-logo.png"
-            alt="Publici Karol"
-          />
+        <a className="brand brand-logo footer-logo" href="#home">
+          <img src="/publici-karol-logo.png" alt="Publici Karol" />
         </a>
 
-        <p>
-          Social Media & Criadora de Conteúdo
-        </p>
+        <p>{site.rodapeTexto}</p>
 
-        <a
-          className="admin-link"
-          href="/admin"
-        >
+        <a className="admin-link" href="/admin">
           Área Administrativa
         </a>
-
       </footer>
-
     </div>
   )
 }
