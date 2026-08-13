@@ -10,7 +10,7 @@ import {
 import {
   ArrowRight,
   CalendarDays,
-  Instagram,
+  AtSign,
   Mail,
   Menu,
   MessageCircle,
@@ -695,7 +695,7 @@ Sei que este é um pré-orçamento e que o valor final pode variar conforme a de
               target={site.instagramUrl ? "_blank" : undefined}
               rel="noreferrer"
             >
-              <Instagram />
+              <AtSign />
               {site.instagramTexto}
             </a>
 
