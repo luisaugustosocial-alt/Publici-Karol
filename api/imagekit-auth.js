@@ -1,42 +1,40 @@
-import ImageKit from "imagekit";
+import ImageKit from "@imagekit/nodejs";
 
 export default function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({
-      error: "Método não permitido."
-    });
-  }
-
-  const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
-
-  if (!privateKey) {
-    return res.status(500).json({
-      error: "IMAGEKIT_PRIVATE_KEY não configurada na Vercel."
+      error: "Método não permitido"
     });
   }
 
   try {
-    const imagekit = new ImageKit({
-      publicKey: "public_vwtlqICXUSxwYIQWMKmyE5pmV/Y=",
-      privateKey: privateKey,
-      urlEndpoint: "https://ik.imagekit.io/7opliey78"
+    const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+
+    if (!privateKey) {
+      return res.status(500).json({
+        error: "IMAGEKIT_PRIVATE_KEY não configurada na Vercel"
+      });
+    }
+
+    const client = new ImageKit({
+      privateKey: privateKey
     });
 
-    const authenticationParameters =
-      imagekit.getAuthenticationParameters();
+    const { token, expire, signature } =
+      client.helper.getAuthenticationParameters();
 
     return res.status(200).json({
-      token: authenticationParameters.token,
-      expire: authenticationParameters.expire,
-      signature: authenticationParameters.signature,
+      token,
+      expire,
+      signature,
       publicKey: "public_vwtlqICXUSxwYIQWMKmyE5pmV/Y="
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Erro ImageKit:", error);
 
     return res.status(500).json({
-      error: "Falha ao gerar autenticação do ImageKit."
+      error: error?.message || "Erro interno do ImageKit"
     });
   }
 }
