@@ -1,394 +1,70 @@
-import { useEffect, useState } from 'react'
-import {
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged
-} from 'firebase/auth'
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc
-} from 'firebase/firestore'
-import { auth, db } from './firebase'
-import { LogOut, MessageCircle, Plus, Trash2, Save } from 'lucide-react'
+import { useEffect, useState } from "react";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from "./firebase";
+import { Home, UserRound, BriefcaseBusiness, Images, MessageSquareQuote, Calculator, Contact, Settings, LogOut, Plus, Trash2, Save, Eye, EyeOff, Upload } from "lucide-react";
 
-const DEFAULT_SITE = {
-  navSobre: 'Sobre',
-  navTrabalhos: 'Trabalhos',
-  navPortfolio: 'Portfólio',
-  navFeedbacks: 'Feedbacks',
-  navOrcamento: 'Orçamento',
-  navContato: 'Contato',
+const PUBLIC_KEY="public_vwtlqICXUSxwYIQWMKmyE5pmV/Y=";
+const DEFAULT={portfolioVisible:true,heroNome:"Brenda",heroSobrenome:"Alencar",heroProfissao:"Social Media & Criadora de Conteúdo",heroDescricao:"Transformo ideias em conteúdo com identidade, estratégia e propósito.",sobreTitulo:"Comunicação que aproxima marcas e pessoas.",sobreTexto1:"Sou Brenda Alencar, estudante de Publicidade e Propaganda, Social Media e criadora de conteúdo.",sobreTexto2:"Atuo com gestão de Instagram, criação de artes e vídeos, planejamento e produção de conteúdo.",trabalhosTitulo:"Meus trabalhos",portfolioTitulo:"Projetos que contam histórias.",portfolioDescricao:"Conheça alguns trabalhos e projetos em destaque.",feedbacksTitulo:"O que dizem sobre meu trabalho",orcamentoTitulo:"Vamos transformar suas ideias em conteúdo?",orcamentoDescricao:"Selecione os serviços para receber uma estimativa inicial.",contatoTitulo:"Vamos criar juntos?",contatoDescricao:"Entre em contato e me conte sobre sua ideia.",instagramUrl:"",email:"",rodapeTexto:"Social Media & Criadora de Conteúdo"};
 
-  heroEyebrow: 'SOCIAL MEDIA • CONTEÚDO • ESTRATÉGIA',
-  heroNome: 'Brenda',
-  heroSobrenome: 'Alencar',
-  heroProfissao: 'Social Media & Criadora de Conteúdo',
-  heroDescricao: 'Transformo ideias em conteúdo com identidade, estratégia e propósito para marcas que querem ser lembradas.',
-  heroBotao: 'Conheça meu trabalho',
-  heroCardLinha1: 'Estratégia + criatividade',
-  heroCardLinha2: 'para comunicar melhor.',
+const sections=[["home","Home",Home],["sobre","Sobre mim",UserRound],["servicos","Serviços",BriefcaseBusiness],["portfolio","Portfólio",Images],["feedbacks","Feedbacks",MessageSquareQuote],["orcamento","Orçamento",Calculator],["contato","Contato",Contact],["config","Configurações",Settings]];
 
-  sobreEyebrow: 'SOBRE MIM',
-  sobreTitulo: 'Comunicação que aproxima marcas e pessoas.',
-  sobreTexto1: 'Sou Brenda Alencar, estudante de Publicidade e Propaganda, Social Media e criadora de conteúdo. Trabalho unindo criatividade e planejamento para construir uma presença digital coerente e marcante.',
-  sobreTexto2: 'Atuo com gestão de Instagram, criação de artes e vídeos, planejamento e produção de conteúdo.',
-
-  trabalhosEyebrow: 'O QUE EU FAÇO',
-  trabalhosTitulo: 'Meus trabalhos',
-
-  portfolioEyebrow: 'PORTFÓLIO',
-  portfolioTitulo: 'Projetos que contam histórias.',
-  portfolioDescricao: 'Conheça alguns trabalhos e projetos em destaque.',
-
-  feedbacksEyebrow: 'FEEDBACKS',
-  feedbacksTitulo: 'O que dizem sobre meu trabalho',
-
-  orcamentoEyebrow: 'ORÇAMENTO',
-  orcamentoTitulo: 'Vamos transformar suas ideias em conteúdo?',
-  orcamentoDescricao: 'Selecione os serviços para receber uma estimativa inicial.',
-  orcamentoBotao: 'Enviar pelo WhatsApp',
-  orcamentoPersonalizado: 'Prefiro um orçamento personalizado',
-  orcamentoAviso: 'O valor exibido é uma estimativa e pode variar conforme a demanda.',
-
-  contatoEyebrow: 'CONTATO',
-  contatoTitulo: 'Vamos criar juntos?',
-  contatoDescricao: 'Entre em contato e me conte sobre sua ideia.',
-  instagramTexto: 'Instagram',
-  instagramUrl: '',
-  emailTexto: 'E-mail',
-  email: '',
-  whatsappTexto: 'WhatsApp',
-
-  rodapeTexto: 'Social Media & Criadora de Conteúdo'
+async function upload(file,folder){
+  const a=await fetch("/api/imagekit-auth"); if(!a.ok) throw new Error("Falha na autorização do upload");
+  const x=await a.json(), f=new FormData();
+  f.append("file",file); f.append("fileName",`${Date.now()}-${file.name}`); f.append("publicKey",PUBLIC_KEY);
+  f.append("signature",x.signature); f.append("expire",String(x.expire)); f.append("token",x.token); f.append("folder",folder);
+  const r=await fetch("https://upload.imagekit.io/api/v1/files/upload",{method:"POST",body:f}), d=await r.json();
+  if(!r.ok) throw new Error(d.message||"Falha no upload"); return {imageUrl:d.url,imageFileId:d.fileId};
 }
 
-export default function Admin() {
-  const [user, setUser] = useState(null)
-  const [authorized, setAuthorized] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [site, setSite] = useState(DEFAULT_SITE)
-  const [services, setServices] = useState([])
-  const [budgets, setBudgets] = useState([])
-  const [newService, setNewService] = useState({ name: '', description: '', price: '' })
-  const [savingSite, setSavingSite] = useState(false)
-  const [saved, setSaved] = useState(false)
+export default function Admin(){
+ const [user,setUser]=useState(null),[ok,setOk]=useState(false),[loading,setLoading]=useState(true),[active,setActive]=useState("home");
+ const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[error,setError]=useState("");
+ const [site,setSite]=useState(DEFAULT),[services,setServices]=useState([]),[projects,setProjects]=useState([]),[feedbacks,setFeedbacks]=useState([]);
+ const [newService,setNewService]=useState({name:"",description:"",price:"",imageUrl:"",visible:true});
+ const [newProject,setNewProject]=useState({title:"",category:"",description:"",imageUrl:"",visible:true});
+ const [newFeedback,setNewFeedback]=useState({name:"",role:"",text:"",visible:true});
 
-  useEffect(() => {
-    return onAuthStateChanged(auth, async current => {
-      setUser(current)
-      if (!current) {
-        setAuthorized(false)
-        setLoading(false)
-        return
-      }
-      try {
-        const adminSnap = await getDoc(doc(db, 'admins', current.uid))
-        setAuthorized(adminSnap.exists())
-      } catch {
-        setAuthorized(false)
-      }
-      setLoading(false)
-    })
-  }, [])
+ useEffect(()=>onAuthStateChanged(auth,async u=>{setUser(u); if(u){try{setOk((await getDoc(doc(db,"admins",u.uid))).exists())}catch{setOk(false)}}else setOk(false); setLoading(false)}),[]);
+ useEffect(()=>{if(ok) load()},[ok]);
+ async function load(){const [c,s,p,f]=await Promise.all([getDoc(doc(db,"site","config")),getDocs(collection(db,"services")),getDocs(collection(db,"portfolio")),getDocs(collection(db,"feedbacks"))]); if(c.exists())setSite({...DEFAULT,...c.data()});setServices(s.docs.map(d=>({id:d.id,...d.data()})));setProjects(p.docs.map(d=>({id:d.id,...d.data()})));setFeedbacks(f.docs.map(d=>({id:d.id,...d.data()})))}
+ async function login(e){e.preventDefault();try{await signInWithEmailAndPassword(auth,email,password)}catch{setError("E-mail ou senha incorretos.")}}
+ const field=(key,label,multi=false)=><label className="admin-field"><span>{label}</span>{multi?<textarea value={site[key]||""} onChange={e=>setSite({...site,[key]:e.target.value})}/>:<input value={site[key]||""} onChange={e=>setSite({...site,[key]:e.target.value})}/>}</label>;
+ async function saveSite(){await setDoc(doc(db,"site","config"),site,{merge:true});alert("Alterações salvas.")}
+ async function togglePortfolio(){const v=site.portfolioVisible===false;setSite({...site,portfolioVisible:v});await setDoc(doc(db,"site","config"),{portfolioVisible:v},{merge:true})}
+ async function imageFor(kind,index,file){if(!file)return;try{const img=await upload(file,`/publici-karol/${kind}`);if(kind==="portfolio"){if(index<0)setNewProject(v=>({...v,...img}));else setProjects(v=>v.map((x,i)=>i===index?{...x,...img}:x))}else{if(index<0)setNewService(v=>({...v,...img}));else setServices(v=>v.map((x,i)=>i===index?{...x,...img}:x))}}catch(e){alert(e.message)}}
+ async function addProject(){if(!newProject.title)return;const r=await addDoc(collection(db,"portfolio"),newProject);setProjects(v=>[...v,{id:r.id,...newProject}]);setNewProject({title:"",category:"",description:"",imageUrl:"",visible:true})}
+ async function saveProject(x){await updateDoc(doc(db,"portfolio",x.id),x);alert("Projeto salvo.")}
+ async function delProject(id){if(confirm("Excluir projeto?")){await deleteDoc(doc(db,"portfolio",id));setProjects(v=>v.filter(x=>x.id!==id))}}
+ async function visProject(x){const visible=x.visible===false;await updateDoc(doc(db,"portfolio",x.id),{visible});setProjects(v=>v.map(y=>y.id===x.id?{...y,visible}:y))}
+ async function addService(){if(!newService.name)return;const data={...newService,price:Number(newService.price||0)};const r=await addDoc(collection(db,"services"),data);setServices(v=>[...v,{id:r.id,...data}]);setNewService({name:"",description:"",price:"",imageUrl:"",visible:true})}
+ async function saveService(x){await updateDoc(doc(db,"services",x.id),{...x,price:Number(x.price||0)});alert("Serviço salvo.")}
+ async function delService(id){if(confirm("Excluir serviço?")){await deleteDoc(doc(db,"services",id));setServices(v=>v.filter(x=>x.id!==id))}}
+ async function visService(x){const visible=x.visible===false;await updateDoc(doc(db,"services",x.id),{visible});setServices(v=>v.map(y=>y.id===x.id?{...y,visible}:y))}
+ async function addFeedback(){if(!newFeedback.text)return;const r=await addDoc(collection(db,"feedbacks"),newFeedback);setFeedbacks(v=>[...v,{id:r.id,...newFeedback}]);setNewFeedback({name:"",role:"",text:"",visible:true})}
+ async function saveFeedback(x){await updateDoc(doc(db,"feedbacks",x.id),x);alert("Feedback salvo.")}
+ async function delFeedback(id){if(confirm("Excluir feedback?")){await deleteDoc(doc(db,"feedbacks",id));setFeedbacks(v=>v.filter(x=>x.id!==id))}}
+ async function visFeedback(x){const visible=x.visible===false;await updateDoc(doc(db,"feedbacks",x.id),{visible});setFeedbacks(v=>v.map(y=>y.id===x.id?{...y,visible}:y))}
 
-  useEffect(() => {
-    if (!authorized) return
-    loadData()
-  }, [authorized])
+ if(loading)return <div className="admin-center">Carregando...</div>;
+ if(!user||!ok)return <div className="admin-login"><form onSubmit={login}><img src="/publici-karol-logo.png" alt="Publici Karol"/><h1>Área Administrativa</h1><p>Entre com a conta autorizada.</p><input type="email" placeholder="E-mail" value={email} onChange={e=>setEmail(e.target.value)}/><input type="password" placeholder="Senha" value={password} onChange={e=>setPassword(e.target.value)}/>{error&&<p className="error">{error}</p>}<button className="admin-primary">Entrar</button></form></div>;
 
-  async function loadData() {
-    try {
-      const configSnap = await getDoc(doc(db, 'site', 'config'))
-      if (configSnap.exists()) {
-        setSite({ ...DEFAULT_SITE, ...configSnap.data() })
-      }
+ const Page=({title,children,action})=><section className="admin-page"><div className="admin-page-head"><div><h2>{title}</h2><p>Edite esta seção sem precisar mexer no código.</p></div>{action}</div>{children}</section>;
+ const save=<button className="admin-primary save-page" onClick={saveSite}><Save size={16}/> Salvar alterações</button>;
 
-      const serviceSnap = await getDocs(collection(db, 'services'))
-      setServices(serviceSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+ return <div className="admin-shell"><aside className="admin-sidebar"><img className="admin-logo" src="/publici-karol-logo.png"/><nav>{sections.map(([id,label,Icon])=><button className={active===id?"active":""} onClick={()=>setActive(id)} key={id}><Icon size={18}/>{label}</button>)}</nav><button className="admin-logout" onClick={()=>signOut(auth)}><LogOut size={18}/>Sair</button></aside><main className="admin-content"><header className="admin-topbar"><div><span className="eyebrow">PUBLICI KAROL</span><h1>Painel Administrativo</h1></div><span>{user.email}</span></header>
 
-      const budgetSnap = await getDocs(collection(db, 'orcamentos'))
-      setBudgets(budgetSnap.docs.map(d => ({ id: d.id, ...d.data() })))
-    } catch (e) {
-      console.warn(e)
-    }
-  }
-
-  async function login(e) {
-    e.preventDefault()
-    setError('')
-    try {
-      await signInWithEmailAndPassword(auth, email, password)
-    } catch {
-      setError('E-mail ou senha incorretos.')
-    }
-  }
-
-  async function saveSite() {
-    setSavingSite(true)
-    setSaved(false)
-    try {
-      await setDoc(doc(db, 'site', 'config'), site, { merge: true })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2500)
-    } catch (e) {
-      alert('Não foi possível salvar os textos.')
-      console.warn(e)
-    } finally {
-      setSavingSite(false)
-    }
-  }
-
-  function field(key, label, multiline = false) {
-    return (
-      <label className="admin-field">
-        <span>{label}</span>
-        {multiline ? (
-          <textarea
-            value={site[key] || ''}
-            onChange={e => setSite({ ...site, [key]: e.target.value })}
-          />
-        ) : (
-          <input
-            value={site[key] || ''}
-            onChange={e => setSite({ ...site, [key]: e.target.value })}
-          />
-        )}
-      </label>
-    )
-  }
-
-  async function saveService(service) {
-    await updateDoc(doc(db, 'services', service.id), {
-      name: service.name || '',
-      description: service.description || '',
-      price: Number(service.price || 0)
-    })
-    alert('Serviço salvo.')
-  }
-
-  async function removeService(id) {
-    if (!confirm('Excluir este serviço?')) return
-    await deleteDoc(doc(db, 'services', id))
-    setServices(v => v.filter(x => x.id !== id))
-  }
-
-  async function createService() {
-    if (!newService.name.trim()) return
-    const ref = await addDoc(collection(db, 'services'), {
-      name: newService.name,
-      description: newService.description,
-      price: Number(newService.price || 0)
-    })
-    setServices(v => [...v, { id: ref.id, ...newService, price: Number(newService.price || 0) }])
-    setNewService({ name: '', description: '', price: '' })
-  }
-
-  function replyWhatsapp(budget) {
-    const number = String(budget.whatsapp || '').replace(/\D/g, '')
-    const text = `Olá, ${budget.nome || ''}! Recebi sua solicitação de orçamento pelo site Publici Karol.`
-    window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, '_blank')
-  }
-
-  if (loading) return <div className="admin-center">Carregando...</div>
-
-  if (!user || !authorized) {
-    return (
-      <div className="admin-login">
-        <form onSubmit={login}>
-          <a className="brand brand-logo" href="/">
-            <img src="/publici-karol-logo.png" alt="Publici Karol" />
-          </a>
-          <h1>Área Administrativa</h1>
-          <p>Entre com a conta autorizada para gerenciar o site.</p>
-          <input type="email" placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} required />
-          <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} required />
-          {error && <p className="error">{error}</p>}
-          <button className="btn white" type="submit">Entrar</button>
-          <a href="/">Voltar para o site</a>
-        </form>
-      </div>
-    )
-  }
-
-  return (
-    <div className="dashboard">
-      <aside className="dash-side">
-        <a className="brand brand-logo lightbrand" href="/">
-          <img src="/publici-karol-logo.png" alt="Publici Karol" />
-        </a>
-        <h3>Administração</h3>
-        <a href="#textos">Textos do site</a>
-        <a href="#servicos">Serviços e valores</a>
-        <a href="#orcamentos">Orçamentos</a>
-        <button onClick={() => signOut(auth)}><LogOut size={17}/> Sair</button>
-      </aside>
-
-      <main className="dash-main">
-        <div className="dash-head">
-          <div>
-            <span className="eyebrow">PUBLICI KAROL</span>
-            <h1>Painel Administrativo</h1>
-          </div>
-          <span>{user.email}</span>
-        </div>
-
-        <section className="admin-section" id="textos">
-          <h2>Textos e informações do site</h2>
-          <p>Altere títulos, descrições, botões, contatos e textos sem editar o código.</p>
-
-          <div className="admin-editor-group">
-            <h3>Menu</h3>
-            <div className="admin-form-grid">
-              {field('navSobre', 'Sobre')}
-              {field('navTrabalhos', 'Trabalhos')}
-              {field('navPortfolio', 'Portfólio')}
-              {field('navFeedbacks', 'Feedbacks')}
-              {field('navOrcamento', 'Orçamento')}
-              {field('navContato', 'Contato')}
-            </div>
-          </div>
-
-          <div className="admin-editor-group">
-            <h3>Home</h3>
-            <div className="admin-form-grid">
-              {field('heroEyebrow', 'Texto pequeno superior')}
-              {field('heroNome', 'Nome')}
-              {field('heroSobrenome', 'Sobrenome')}
-              {field('heroProfissao', 'Profissão')}
-              {field('heroDescricao', 'Descrição', true)}
-              {field('heroBotao', 'Texto do botão')}
-              {field('heroCardLinha1', 'Card — linha 1')}
-              {field('heroCardLinha2', 'Card — linha 2')}
-            </div>
-          </div>
-
-          <div className="admin-editor-group">
-            <h3>Sobre mim</h3>
-            <div className="admin-form-grid">
-              {field('sobreEyebrow', 'Texto pequeno')}
-              {field('sobreTitulo', 'Título')}
-              {field('sobreTexto1', 'Primeiro parágrafo', true)}
-              {field('sobreTexto2', 'Segundo parágrafo', true)}
-            </div>
-          </div>
-
-          <div className="admin-editor-group">
-            <h3>Meus trabalhos</h3>
-            <div className="admin-form-grid">
-              {field('trabalhosEyebrow', 'Texto pequeno')}
-              {field('trabalhosTitulo', 'Título')}
-            </div>
-          </div>
-
-          <div className="admin-editor-group">
-            <h3>Portfólio</h3>
-            <div className="admin-form-grid">
-              {field('portfolioEyebrow', 'Texto pequeno')}
-              {field('portfolioTitulo', 'Título')}
-              {field('portfolioDescricao', 'Descrição', true)}
-            </div>
-          </div>
-
-          <div className="admin-editor-group">
-            <h3>Feedbacks</h3>
-            <div className="admin-form-grid">
-              {field('feedbacksEyebrow', 'Texto pequeno')}
-              {field('feedbacksTitulo', 'Título')}
-            </div>
-          </div>
-
-          <div className="admin-editor-group">
-            <h3>Orçamento</h3>
-            <div className="admin-form-grid">
-              {field('orcamentoEyebrow', 'Texto pequeno')}
-              {field('orcamentoTitulo', 'Título')}
-              {field('orcamentoDescricao', 'Descrição', true)}
-              {field('orcamentoBotao', 'Botão do WhatsApp')}
-              {field('orcamentoPersonalizado', 'Botão orçamento personalizado')}
-              {field('orcamentoAviso', 'Aviso do pré-orçamento', true)}
-            </div>
-          </div>
-
-          <div className="admin-editor-group">
-            <h3>Contato e rodapé</h3>
-            <div className="admin-form-grid">
-              {field('contatoEyebrow', 'Texto pequeno')}
-              {field('contatoTitulo', 'Título')}
-              {field('contatoDescricao', 'Descrição', true)}
-              {field('instagramTexto', 'Texto Instagram')}
-              {field('instagramUrl', 'Link do Instagram')}
-              {field('whatsappTexto', 'Texto WhatsApp')}
-              {field('emailTexto', 'Texto E-mail')}
-              {field('email', 'E-mail')}
-              {field('rodapeTexto', 'Texto do rodapé')}
-            </div>
-          </div>
-
-          <button className="btn" onClick={saveSite} disabled={savingSite}>
-            <Save size={18}/>
-            {savingSite ? 'Salvando...' : 'Salvar alterações'}
-          </button>
-          {saved && <p className="admin-saved">Alterações salvas com sucesso.</p>}
-        </section>
-
-        <section className="admin-section" id="servicos">
-          <h2>Serviços e valores</h2>
-          <p>Os valores definidos aqui alimentam o pré-orçamento do site.</p>
-
-          <div className="service-admin-list">
-            {services.map((service, index) => (
-              <div className="service-admin" key={service.id}>
-                <input value={service.name || ''} onChange={e => setServices(v => v.map((x,i) => i === index ? {...x,name:e.target.value}:x))}/>
-                <input value={service.description || ''} onChange={e => setServices(v => v.map((x,i) => i === index ? {...x,description:e.target.value}:x))}/>
-                <input type="number" min="0" step="0.01" value={service.price ?? ''} onChange={e => setServices(v => v.map((x,i) => i === index ? {...x,price:e.target.value}:x))}/>
-                <button onClick={() => saveService(service)}><Save size={15}/> Salvar</button>
-                <button className="danger" onClick={() => removeService(service.id)}><Trash2 size={15}/></button>
-              </div>
-            ))}
-
-            <div className="service-admin new">
-              <input placeholder="Novo serviço" value={newService.name} onChange={e => setNewService({...newService,name:e.target.value})}/>
-              <input placeholder="Descrição" value={newService.description} onChange={e => setNewService({...newService,description:e.target.value})}/>
-              <input type="number" placeholder="Valor" value={newService.price} onChange={e => setNewService({...newService,price:e.target.value})}/>
-              <button onClick={createService}><Plus size={15}/> Adicionar</button>
-            </div>
-          </div>
-        </section>
-
-        <section className="admin-section" id="orcamentos">
-          <h2>Orçamentos recebidos</h2>
-          <div className="budget-list">
-            {!budgets.length && <p>Nenhum orçamento recebido ainda.</p>}
-            {budgets.map(budget => (
-              <article className="budget-card" key={budget.id}>
-                <div>
-                  <span className="status">{budget.status || 'novo'}</span>
-                  <h3>{budget.nome || 'Sem nome'}</h3>
-                  <p>{budget.whatsapp || 'Sem WhatsApp'}</p>
-                </div>
-                <strong>
-                  {Number(budget.total || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-                </strong>
-                <div className="budget-services">
-                  {(budget.services || []).map((s,i) => <span key={i}>{s.name}</span>)}
-                </div>
-                <button className="btn small" onClick={() => replyWhatsapp(budget)}>
-                  <MessageCircle size={16}/> Responder
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
-      </main>
-    </div>
-  )
+ {active==="home"&&<Page title="Home"><div className="admin-form-grid">{field("heroNome","Nome")}{field("heroSobrenome","Sobrenome")}{field("heroProfissao","Profissão")}{field("heroDescricao","Descrição",true)}</div>{save}</Page>}
+ {active==="sobre"&&<Page title="Sobre mim"><div className="admin-form-grid">{field("sobreTitulo","Título")}{field("sobreTexto1","Primeiro texto",true)}{field("sobreTexto2","Segundo texto",true)}</div>{save}</Page>}
+ {active==="servicos"&&<Page title="Serviços"><div className="admin-list">{services.map((x,i)=><div className="admin-card" key={x.id}><Media image={x.imageUrl} onFile={f=>imageFor("servicos",i,f)}/><div className="fields"><input value={x.name||""} onChange={e=>setServices(v=>v.map((y,j)=>j===i?{...y,name:e.target.value}:y))}/><textarea value={x.description||""} onChange={e=>setServices(v=>v.map((y,j)=>j===i?{...y,description:e.target.value}:y))}/><input type="number" value={x.price??""} onChange={e=>setServices(v=>v.map((y,j)=>j===i?{...y,price:e.target.value}:y))}/></div><Actions visible={x.visible} onVis={()=>visService(x)} onSave={()=>saveService(x)} onDel={()=>delService(x.id)}/></div>)}<div className="admin-card new"><Media image={newService.imageUrl} onFile={f=>imageFor("servicos",-1,f)}/><div className="fields"><input placeholder="Novo serviço" value={newService.name} onChange={e=>setNewService({...newService,name:e.target.value})}/><textarea placeholder="Descrição" value={newService.description} onChange={e=>setNewService({...newService,description:e.target.value})}/><input type="number" placeholder="Valor" value={newService.price} onChange={e=>setNewService({...newService,price:e.target.value})}/></div><button className="admin-primary" onClick={addService}><Plus size={16}/>Adicionar</button></div></div></Page>}
+ {active==="portfolio"&&<Page title="Portfólio" action={<button className="visibility" onClick={togglePortfolio}>{site.portfolioVisible===false?<EyeOff/>:<Eye/>}{site.portfolioVisible===false?"Escondido":"Visível"}</button>}><div className="admin-form-grid">{field("portfolioTitulo","Título")}{field("portfolioDescricao","Descrição",true)}</div>{save}<div className="portfolio-admin">{projects.map((x,i)=><div className="project-admin" key={x.id}><Media image={x.imageUrl} onFile={f=>imageFor("portfolio",i,f)}/><div className="fields"><input placeholder="Título" value={x.title||""} onChange={e=>setProjects(v=>v.map((y,j)=>j===i?{...y,title:e.target.value}:y))}/><input placeholder="Categoria" value={x.category||""} onChange={e=>setProjects(v=>v.map((y,j)=>j===i?{...y,category:e.target.value}:y))}/><textarea placeholder="Descrição" value={x.description||""} onChange={e=>setProjects(v=>v.map((y,j)=>j===i?{...y,description:e.target.value}:y))}/></div><Actions visible={x.visible} onVis={()=>visProject(x)} onSave={()=>saveProject(x)} onDel={()=>delProject(x.id)}/></div>)}<div className="project-admin new"><Media image={newProject.imageUrl} onFile={f=>imageFor("portfolio",-1,f)}/><div className="fields"><input placeholder="Título do projeto" value={newProject.title} onChange={e=>setNewProject({...newProject,title:e.target.value})}/><input placeholder="Categoria" value={newProject.category} onChange={e=>setNewProject({...newProject,category:e.target.value})}/><textarea placeholder="Descrição" value={newProject.description} onChange={e=>setNewProject({...newProject,description:e.target.value})}/><button className="admin-primary" onClick={addProject}><Plus size={16}/>Adicionar projeto</button></div></div></div></Page>}
+ {active==="feedbacks"&&<Page title="Feedbacks"><div className="feedback-admin">{feedbacks.map((x,i)=><div className="feedback-card" key={x.id}><input placeholder="Nome" value={x.name||""} onChange={e=>setFeedbacks(v=>v.map((y,j)=>j===i?{...y,name:e.target.value}:y))}/><input placeholder="Cargo/empresa" value={x.role||""} onChange={e=>setFeedbacks(v=>v.map((y,j)=>j===i?{...y,role:e.target.value}:y))}/><textarea value={x.text||""} onChange={e=>setFeedbacks(v=>v.map((y,j)=>j===i?{...y,text:e.target.value}:y))}/><Actions visible={x.visible} onVis={()=>visFeedback(x)} onSave={()=>saveFeedback(x)} onDel={()=>delFeedback(x.id)}/></div>)}<div className="feedback-card new"><input placeholder="Nome" value={newFeedback.name} onChange={e=>setNewFeedback({...newFeedback,name:e.target.value})}/><input placeholder="Cargo/empresa" value={newFeedback.role} onChange={e=>setNewFeedback({...newFeedback,role:e.target.value})}/><textarea placeholder="Feedback" value={newFeedback.text} onChange={e=>setNewFeedback({...newFeedback,text:e.target.value})}/><button className="admin-primary" onClick={addFeedback}><Plus size={16}/>Adicionar feedback</button></div></div></Page>}
+ {active==="orcamento"&&<Page title="Orçamento"><div className="admin-form-grid">{field("orcamentoTitulo","Título")}{field("orcamentoDescricao","Descrição",true)}</div>{save}</Page>}
+ {active==="contato"&&<Page title="Contato"><div className="admin-form-grid">{field("contatoTitulo","Título")}{field("contatoDescricao","Descrição",true)}{field("instagramUrl","Instagram")}{field("email","E-mail")}</div>{save}</Page>}
+ {active==="config"&&<Page title="Configurações"><div className="admin-form-grid">{field("trabalhosTitulo","Título de serviços")}{field("feedbacksTitulo","Título de feedbacks")}{field("rodapeTexto","Rodapé")}</div>{save}</Page>}
+ </main></div>
 }
+
+function Media({image,onFile}){return <div className="media">{image?<img src={image}/>:<Images size={30}/>}<label><Upload size={14}/>Imagem<input type="file" accept="image/*" onChange={e=>onFile(e.target.files?.[0])}/></label></div>}
+function Actions({visible,onVis,onSave,onDel}){return <div className="actions"><button className="ghost" onClick={onVis}>{visible===false?<Eye/>:<EyeOff/>}{visible===false?"Exibir":"Ocultar"}</button><button onClick={onSave}><Save/>Salvar</button><button className="danger" onClick={onDel}><Trash2/></button></div>}
