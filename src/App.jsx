@@ -1,1 +1,50 @@
-PLACEHOLDER
+import { useEffect, useMemo, useState } from "react";
+import { addDoc, collection, doc, getDoc, getDocs, serverTimestamp } from "firebase/firestore";
+import { ArrowRight, AtSign, Mail, Menu, MessageCircle, X } from "lucide-react";
+import { db } from "./firebase";
+
+const DEFAULT_SITE = {
+  servicesVisible:true, portfolioVisible:true, feedbacksVisible:true,
+  navSobre:"Sobre", navTrabalhos:"Trabalhos", navPortfolio:"Portfólio", navFeedbacks:"Feedbacks", navOrcamento:"Orçamento", navContato:"Contato",
+  heroEyebrow:"SOCIAL MEDIA • CONTEÚDO • ESTRATÉGIA", heroNome:"Brenda", heroSobrenome:"Alencar", heroProfissao:"Social Media & Criadora de Conteúdo",
+  heroDescricao:"Transformo ideias em conteúdo com identidade, estratégia e propósito para marcas que querem ser lembradas.", heroBotao:"Conheça meu trabalho",
+  heroCardLinha1:"Estratégia + criatividade", heroCardLinha2:"para comunicar melhor.", heroImageUrl:"/brenda-alencar.png", aboutImageUrl:"/brenda-alencar.png",
+  sobreEyebrow:"SOBRE MIM", sobreTitulo:"Comunicação que aproxima marcas e pessoas.",
+  sobreTexto1:"Sou Brenda Alencar, estudante de Publicidade e Propaganda, Social Media e criadora de conteúdo. Trabalho unindo criatividade e planejamento para construir uma presença digital coerente e marcante.",
+  sobreTexto2:"Atuo com gestão de Instagram, criação de artes e vídeos, planejamento e produção de conteúdo.",
+  trabalhosEyebrow:"O QUE EU FAÇO", trabalhosTitulo:"Meus trabalhos", trabalhosDescricao:"Soluções criativas pensadas para fortalecer sua comunicação digital.",
+  portfolioEyebrow:"PORTFÓLIO", portfolioTitulo:"Projetos que contam histórias.", portfolioDescricao:"Uma seleção de trabalhos desenvolvidos com estratégia, criatividade e identidade.",
+  feedbacksEyebrow:"FEEDBACKS", feedbacksTitulo:"O que dizem sobre meu trabalho", feedbacksDescricao:"Experiências de pessoas e marcas que já trabalharam comigo.",
+  orcamentoEyebrow:"ORÇAMENTO", orcamentoTitulo:"Vamos transformar suas ideias em conteúdo?", orcamentoDescricao:"Selecione os serviços para receber uma estimativa inicial.",
+  orcamentoBotao:"Enviar pelo WhatsApp", orcamentoPersonalizado:"Prefiro um orçamento personalizado", orcamentoAviso:"O valor exibido é uma estimativa e pode variar conforme a demanda.",
+  contatoEyebrow:"CONTATO", contatoTitulo:"Vamos criar juntos?", contatoDescricao:"Entre em contato e me conte sobre sua ideia.", instagramTexto:"Instagram", instagramUrl:"", whatsappTexto:"WhatsApp", emailTexto:"E-mail", email:"", rodapeTexto:"Social Media & Criadora de Conteúdo"
+};
+
+const money = v => Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+
+export default function App(){
+  const [menu,setMenu]=useState(false), [site,setSite]=useState(DEFAULT_SITE), [services,setServices]=useState([]), [projects,setProjects]=useState([]), [feedbacks,setFeedbacks]=useState([]), [selected,setSelected]=useState([]), [form,setForm]=useState({nome:"",whatsapp:"",descricao:""});
+  useEffect(()=>{(async()=>{try{
+    const [s,sv,p,f]=await Promise.all([getDoc(doc(db,"site","config")),getDocs(collection(db,"services")),getDocs(collection(db,"portfolio")),getDocs(collection(db,"feedbacks"))]);
+    if(s.exists()) setSite({...DEFAULT_SITE,...s.data()});
+    setServices(sv.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.visible!==false));
+    setProjects(p.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.visible!==false));
+    setFeedbacks(f.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.visible!==false));
+  }catch(e){console.warn(e)}})()},[]);
+  const total=useMemo(()=>selected.reduce((n,id)=>n+Number(services.find(s=>s.id===id)?.price||0),0),[selected,services]);
+  const phone=()=>String(import.meta.env.VITE_WHATSAPP_NUMBER||"").replace(/\D/g,"");
+  const customBudget=()=>{const n=phone(); if(!n)return alert("O WhatsApp ainda não foi configurado na Vercel."); window.open(`https://wa.me/${n}?text=${encodeURIComponent("Olá! Vim pelo site Publici Karol e gostaria de solicitar um orçamento personalizado.")}`,"_blank")};
+  async function sendBudget(){const chosen=services.filter(x=>selected.includes(x.id)); try{await addDoc(collection(db,"orcamentos"),{nome:form.nome||"Não informado",whatsapp:form.whatsapp||"Não informado",descricao:form.descricao||"",services:chosen.map(x=>({id:x.id,name:x.name,price:Number(x.price||0)})),total,status:"novo",createdAt:serverTimestamp()})}catch(e){console.warn(e)} const n=phone(); if(!n)return alert("O WhatsApp ainda não foi configurado na Vercel."); const list=chosen.map(x=>`• ${x.name} — ${Number(x.price)>0?money(x.price):"valor a confirmar"}`).join("\n"); window.open(`https://wa.me/${n}?text=${encodeURIComponent(`Olá! Vim pelo site Publici Karol e gostaria de falar sobre este pré-orçamento:\n\n${list}\n\nValor estimado: ${money(total)}\nNome: ${form.nome||"Não informado"}\nWhatsApp: ${form.whatsapp||"Não informado"}\nObservação: ${form.descricao||"Nenhuma"}`)}`,"_blank")}
+  return <div>
+    <header className="nav"><a className="brand-logo" href="#home"><img src="/publici-karol-logo.png" alt="Publici Karol"/></a><nav className={menu?"links open":"links"}><a href="#sobre">{site.navSobre}</a>{site.servicesVisible!==false&&<a href="#trabalhos">{site.navTrabalhos}</a>}{site.portfolioVisible!==false&&<a href="#portfolio">{site.navPortfolio}</a>}{site.feedbacksVisible!==false&&<a href="#feedbacks">{site.navFeedbacks}</a>}<a href="#orcamento">{site.navOrcamento}</a><a href="#contato">{site.navContato}</a></nav><button className="menu" onClick={()=>setMenu(!menu)}>{menu?<X/>:<Menu/>}</button></header>
+    <main>
+      <section id="home" className="hero"><div className="hero-copy"><span className="eyebrow">{site.heroEyebrow}</span><h1>{site.heroNome}<br/><em>{site.heroSobrenome}</em></h1><h2>{site.heroProfissao}</h2><p>{site.heroDescricao}</p><a className="btn" href="#portfolio">{site.heroBotao}<ArrowRight size={18}/></a></div><div className="hero-art"><div className="hero-photo"><img src={site.heroImageUrl||"/brenda-alencar.png"} alt="Brenda Alencar"/></div><div className="floating-card">{site.heroCardLinha1}<br/><strong>{site.heroCardLinha2}</strong></div></div></section>
+      <section id="sobre" className="section about"><div className="about-photo"><img src={site.aboutImageUrl||"/brenda-alencar.png"} alt="Brenda Alencar"/></div><div><span className="eyebrow">{site.sobreEyebrow}</span><h2>{site.sobreTitulo}</h2><p>{site.sobreTexto1}</p><p>{site.sobreTexto2}</p></div></section>
+      {site.servicesVisible!==false&&<section id="trabalhos" className="section soft"><div className="center"><span className="eyebrow">{site.trabalhosEyebrow}</span><h2>{site.trabalhosTitulo}</h2><p>{site.trabalhosDescricao}</p></div><div className="work-grid">{services.map(x=><article className="work-card" key={x.id}>{x.imageUrl&&<img className="service-image" src={x.imageUrl} alt={x.name}/>}<h3>{x.name}</h3><p>{x.description}</p></article>)}</div></section>}
+      {site.portfolioVisible!==false&&<section id="portfolio" className="section"><span className="eyebrow">{site.portfolioEyebrow}</span><h2>{site.portfolioTitulo}</h2><p className="section-intro">{site.portfolioDescricao}</p><div className="portfolio-grid">{projects.map(x=><article className="project" key={x.id}><div className="project-image">{(x.coverUrl||x.imageUrl)?<img src={x.coverUrl||x.imageUrl} alt={x.title||"Projeto"}/>:<span>SEM IMAGEM</span>}</div>{x.category&&<small>{x.category}</small>}<h3>{x.title||"Projeto"}</h3>{x.description&&<p>{x.description}</p>}</article>)}</div></section>}
+      {site.feedbacksVisible!==false&&<section id="feedbacks" className="feedback section"><span className="eyebrow light">{site.feedbacksEyebrow}</span><h2>{site.feedbacksTitulo}</h2><p className="feedback-intro">{site.feedbacksDescricao}</p><div className="quotes">{feedbacks.map(x=><blockquote key={x.id}>“{x.text}”<footer>— {x.name||"Cliente"}{x.role?`, ${x.role}`:""}</footer></blockquote>)}</div></section>}
+      <section id="orcamento" className="section budget"><div className="center"><span className="eyebrow">{site.orcamentoEyebrow}</span><h2>{site.orcamentoTitulo}</h2><p>{site.orcamentoDescricao}</p></div><div className="budget-grid"><div className="service-picker">{services.map(x=><label className={selected.includes(x.id)?"service-option active":"service-option"} key={x.id}><input type="checkbox" checked={selected.includes(x.id)} onChange={()=>setSelected(v=>v.includes(x.id)?v.filter(i=>i!==x.id):[...v,x.id])}/><div><strong>{x.name}</strong><small>{x.description}</small></div><b>{Number(x.price)>0?money(x.price):"Sob consulta"}</b></label>)}</div><aside className="summary"><span className="eyebrow light">SEU PRÉ-ORÇAMENTO</span><h3>{selected.length} serviço(s) selecionado(s)</h3><div className="total"><span>Estimativa</span><strong>{money(total)}</strong></div><input placeholder="Seu nome" value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})}/><input placeholder="Seu WhatsApp" value={form.whatsapp} onChange={e=>setForm({...form,whatsapp:e.target.value})}/><textarea placeholder="Conte um pouco sobre o que precisa (opcional)" value={form.descricao} onChange={e=>setForm({...form,descricao:e.target.value})}/><button className="btn white" disabled={!selected.length} onClick={sendBudget}><MessageCircle size={18}/>{site.orcamentoBotao}</button><button className="text-btn" onClick={customBudget}>{site.orcamentoPersonalizado}</button><small>{site.orcamentoAviso}</small></aside></div></section>
+      <section id="contato" className="section contact"><div><span className="eyebrow">{site.contatoEyebrow}</span><h2>{site.contatoTitulo}</h2><p>{site.contatoDescricao}</p></div><div className="contact-links"><a href={site.instagramUrl||"#"}><AtSign/>{site.instagramTexto}</a><button onClick={customBudget}><MessageCircle/>{site.whatsappTexto}</button><a href={site.email?`mailto:${site.email}`:"#"}><Mail/>{site.emailTexto}</a></div></section>
+    </main><footer className="footer"><img className="footer-logo" src="/publici-karol-logo.png" alt="Publici Karol"/><p>{site.rodapeTexto}</p><a className="admin-link" href="/admin">Área Administrativa</a></footer>
+  </div>
+}
