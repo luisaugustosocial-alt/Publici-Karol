@@ -5,6 +5,7 @@ import Admin from './Admin'
 import AdminFotos from './AdminFotos'
 import './styles.css'
 import './liquid-glass.css'
+import './admin-photos.css'
 
 const path = window.location.pathname
 const photoAdmin = path.startsWith('/admin/fotos')
